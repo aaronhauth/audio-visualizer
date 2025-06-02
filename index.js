@@ -1,4 +1,4 @@
-const { fromEvent, animationFrames, defer } = rxjs;
+const { fromEvent, animationFrames, defer, combineLatest } = rxjs;
 const { map, tap, switchMap, startWith } = rxjs.operators;
 
 const canvas = document.getElementById("visualizer");
@@ -31,15 +31,25 @@ function createAnalyserStream() {
     });
 }
 
+function createSmoothedArray(length) {
+    return new Array(length).fill(0);
+}
+
 // Draw function (pure)
-function drawBars(dataArray, bufferLength) {
+function drawBars(dataArray, bufferLength, smoothedArray, smoothingFactor = 0.15) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
     const barWidth = (canvas.width / bufferLength) * 2.5;
     let x = 0;
 
     for (let i = 0; i < bufferLength; i++) {
-        const barHeight = (dataArray[i] / BYTE_FREQUENCY_MAX) * canvas.height;
-        const r = barHeight + 25;
+        // Smooth each bar height
+        const target = (dataArray[i] / BYTE_FREQUENCY_MAX) * canvas.height;
+        smoothedArray[i] += (target - smoothedArray[i]) * smoothingFactor;
+
+        const barHeight = smoothedArray[i];
+
+        const r = dataArray[i] + 25;
         const g = 250 * (i / bufferLength);
         const b = 100;
 
@@ -51,16 +61,17 @@ function drawBars(dataArray, bufferLength) {
 }
 
 // Set up everything
-resize$.pipe(
-    switchMap(() => createAnalyserStream()),
-    switchMap(({ analyser, dataArray, bufferLength }) =>
-        animationFrames().pipe(
+combineLatest([createAnalyserStream(), resize$]).pipe(
+    switchMap(([{ analyser, dataArray, bufferLength }]) => {
+        const smoothedArray = createSmoothedArray(bufferLength);
+
+        return animationFrames().pipe(
             tap(() => {
                 analyser.getByteFrequencyData(dataArray);
-                drawBars(dataArray, bufferLength);
+                drawBars(dataArray, bufferLength, smoothedArray);
             })
-        )
-    )
+        );
+    })
 ).subscribe({
     error: err => {
         alert("Microphone access failed or not supported.");
