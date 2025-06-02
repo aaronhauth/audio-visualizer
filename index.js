@@ -4,6 +4,8 @@ const { map, tap, switchMap, startWith } = rxjs.operators;
 const canvas = document.getElementById("visualizer");
 const ctx = canvas.getContext("2d");
 
+const BYTE_FREQUENCY_MAX = 255;
+
 // Resize canvas reactively
 const resize$ = fromEvent(window, "resize").pipe(
     startWith(null),
@@ -31,14 +33,12 @@ function createAnalyserStream() {
 
 // Draw function (pure)
 function drawBars(dataArray, bufferLength) {
-    ctx.fillStyle = "#111";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const barWidth = (canvas.width / bufferLength) * 2.5;
     let x = 0;
 
     for (let i = 0; i < bufferLength; i++) {
-        const barHeight = dataArray[i];
+        const barHeight = (dataArray[i] / BYTE_FREQUENCY_MAX) * canvas.height;
         const r = barHeight + 25;
         const g = 250 * (i / bufferLength);
         const b = 100;
